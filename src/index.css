@@ -1,0 +1,207 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 220 20% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 10%;
+
+    --primary: 36 95% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 20% 93%;
+    --secondary-foreground: 220 20% 20%;
+
+    --muted: 210 15% 95%;
+    --muted-foreground: 215 15% 50%;
+
+    --accent: 215 25% 90%;
+    --accent-foreground: 220 20% 15%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 88%;
+    --ring: 36 95% 50%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 220 20% 12%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 36 95% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 18% 18%;
+    --sidebar-accent-foreground: 210 15% 90%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 36 95% 50%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --chart-electrical: 217 91% 60%;
+    --chart-plumbing: 142 71% 45%;
+    --chart-construction: 36 95% 50%;
+  }
+
+  .dark {
+    --background: 222 20% 8%;
+    --foreground: 210 20% 95%;
+
+    --card: 220 18% 12%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 220 18% 12%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 36 95% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 15% 85%;
+
+    --muted: 220 15% 15%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 220 15% 20%;
+    --accent-foreground: 210 15% 90%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 22%;
+    --ring: 36 95% 50%;
+
+    --sidebar-background: 222 22% 6%;
+    --sidebar-foreground: 210 15% 80%;
+    --sidebar-primary: 36 95% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 18% 12%;
+    --sidebar-accent-foreground: 210 15% 90%;
+    --sidebar-border: 220 15% 15%;
+    --sidebar-ring: 36 95% 50%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --chart-electrical: 217 91% 60%;
+    --chart-plumbing: 142 71% 45%;
+    --chart-construction: 36 95% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', system-ui, sans-serif;
+    @apply font-bold tracking-tight;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border shadow-sm;
+  }
+  .stat-card {
+    @apply bg-card border rounded-xl p-5 shadow-sm transition-all duration-200 hover:shadow-md;
+  }
+  .low-stock-badge {
+    @apply bg-destructive/10 text-destructive text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+}
+
+/* Print Styles */
+@media print {
+  /* Hide navigation and controls */
+  nav,
+  button,
+  [class*="sidebar"],
+  [class*="navbar"],
+  .text-muted-foreground small {
+    display: none !important;
+  }
+
+  /* Optimize page layout */
+  body {
+    background: white;
+    color: black;
+  }
+
+  .space-y-6 {
+    @apply space-y-3;
+  }
+
+  /* Show print friendly styles */
+  h1,
+  h2,
+  h3 {
+    color: black;
+    page-break-after: avoid;
+  }
+
+  table {
+    @apply border-collapse w-full;
+  }
+
+  th,
+  td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+
+  th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Force light colors for printing */
+  .bg-muted,
+  .bg-card {
+    background-color: white !important;
+  }
+
+  .text-muted-foreground,
+  .text-foreground {
+    color: black !important;
+  }
+
+  .border {
+    border-color: #ccc !important;
+  }
+}
+
