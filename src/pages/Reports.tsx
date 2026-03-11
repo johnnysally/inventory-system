@@ -4,7 +4,7 @@ import { DEPARTMENTS } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, AlertTriangle, ArrowLeftRight, Package, Printer, Trash2, Eye, Grid3x3, List } from "lucide-react";
+import { Download, AlertTriangle, ArrowLeftRight, ArrowDownToLine, Package, Printer, Trash2, Eye, Grid3x3, List } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { ReportDetailView } from "@/components/ReportDetailView";
@@ -129,6 +129,7 @@ export default function Reports() {
   const [selectedLowStock, setSelectedLowStock] = useState<Set<string>>(new Set());
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [selectedStockOut, setSelectedStockOut] = useState<Set<string>>(new Set());
+  const [selectedStockIn, setSelectedStockIn] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
   const [selectedReport, setSelectedReport] = useState<InventoryItem | Transaction | null>(null);
   const [detailViewType, setDetailViewType] = useState<'inventory' | 'transaction' | 'lowstock' | null>(null);
@@ -139,6 +140,7 @@ export default function Reports() {
   const lowStockItems = filteredItems.filter((i) => i.quantity <= i.minThreshold);
   const filteredTx = deptFilter === "all" ? transactions : transactions.filter((t) => t.department === deptFilter);
   const stockOutTx = filteredTx.filter((t) => t.type === "Stock Out");
+  const stockInTx = filteredTx.filter((t) => t.type === "Stock In");
 
   const openDetailView = (data: InventoryItem | Transaction, type: 'inventory' | 'transaction' | 'lowstock') => {
     setSelectedReport(data);
@@ -219,6 +221,17 @@ export default function Reports() {
     setSelectedStockOut(checked ? new Set(stockOutTx.map(t => t.id)) : new Set());
   };
 
+  // Selection handlers for stock in
+  const toggleStockInSelection = (id: string) => {
+    const newSet = new Set(selectedStockIn);
+    newSet.has(id) ? newSet.delete(id) : newSet.add(id);
+    setSelectedStockIn(newSet);
+  };
+
+  const toggleAllStockIn = (checked: boolean) => {
+    setSelectedStockIn(checked ? new Set(stockInTx.map(t => t.id)) : new Set());
+  };
+
   // Bulk actions
   const handleBulkDeleteStockOut = async () => {
     if (selectedStockOut.size === 0) {
@@ -236,6 +249,30 @@ export default function Reports() {
       await Promise.all(promises);
       toast.success(`${selectedStockOut.size} record(s) deleted`);
       setSelectedStockOut(new Set());
+      await refreshData();
+    } catch (error: any) {
+      toast.error("Failed to delete records");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleBulkDeleteStockIn = async () => {
+    if (selectedStockIn.size === 0) {
+      toast.error("No items selected");
+      return;
+    }
+
+    if (!window.confirm(`Delete ${selectedStockIn.size} stock in record(s)? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const promises = Array.from(selectedStockIn).map(id => api.delete(`/transactions/${id}`));
+      await Promise.all(promises);
+      toast.success(`${selectedStockIn.size} record(s) deleted`);
+      setSelectedStockIn(new Set());
       await refreshData();
     } catch (error: any) {
       toast.error("Failed to delete records");
@@ -486,6 +523,66 @@ export default function Reports() {
     }
   };
 
+  const generateStockInPrintContent = () => {
+    const selectedData = stockInTx.filter(t => selectedStockIn.has(t.id));
+    if (selectedData.length === 0) {
+      toast.error("No items selected to print");
+      return;
+    }
+
+    let html = `
+      <div class="print-header">
+        <h1>Stock In Report</h1>
+        <p>SawelaCapella Inventory Management System</p>
+        <p>Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+      </div>
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Item</th>
+            <th>Quantity</th>
+            <th>Department</th>
+            <th>Supplier/Source</th>
+            <th>Notes</th>
+            <th>User</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    let totalQty = 0;
+    selectedData.forEach(tx => {
+      totalQty += tx.quantity;
+      html += `
+        <tr>
+          <td>${tx.date}</td>
+          <td>${tx.itemName}</td>
+          <td>${tx.quantity}</td>
+          <td>${tx.department}</td>
+          <td>${tx.notes || "—"}</td>
+          <td></td>
+          <td>${tx.user}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+        </tbody>
+      </table>
+      <div class="print-summary">
+        <strong>Total Stock In Records:</strong> ${selectedData.length} | <strong>Total Quantity Received:</strong> ${totalQty}
+      </div>
+      <div class="print-footer">
+        Page prepared for printing
+      </div>
+    `;
+
+    if (printContainerRef.current) {
+      printContainerRef.current.innerHTML = html;
+    }
+  };
+
   const handlePrintSelected = () => {
     if (activeTab === "inventory") {
       generateInventoryPrintContent();
@@ -495,6 +592,8 @@ export default function Reports() {
       generateTransactionsPrintContent();
     } else if (activeTab === "stock-out") {
       generateStockOutPrintContent();
+    } else if (activeTab === "stock-in") {
+      generateStockInPrintContent();
     }
     
     setTimeout(() => {
@@ -592,6 +691,27 @@ export default function Reports() {
     downloadOrganizedCSV(csv, "stock-out-report.csv");
   };
 
+  const generateStockInCSV = () => {
+    const selectedData = stockInTx.filter(t => selectedStockIn.has(t.id));
+    if (selectedData.length === 0) {
+      toast.error("No items selected to export");
+      return;
+    }
+
+    const timestamp = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
+    let csv = `SawelaCapella Inventory Management System\nStock In Report\nGenerated: ${timestamp}\n\n`;
+    csv += "Date,Item,Quantity,Department,Supplier/Source,Notes,User\n";
+    
+    let totalQty = 0;
+    selectedData.forEach(tx => {
+      totalQty += tx.quantity;
+      csv += `"${tx.date}","${tx.itemName}",${tx.quantity},"${tx.department}","${(tx.notes || "").replace(/"/g, '""')}","","${tx.user}"\n`;
+    });
+
+    csv += `\nTotal Records:,${selectedData.length}\nTotal Quantity Received:,${totalQty}\n`;
+    downloadOrganizedCSV(csv, "stock-in-report.csv");
+  };
+
   return (
     <div className="space-y-6">
       <ReportDetailView
@@ -628,6 +748,7 @@ export default function Reports() {
           <TabsTrigger value="inventory" className="gap-2"><Package className="h-3.5 w-3.5" /> Inventory</TabsTrigger>
           <TabsTrigger value="low-stock" className="gap-2"><AlertTriangle className="h-3.5 w-3.5" /> Low Stock</TabsTrigger>
           <TabsTrigger value="transactions" className="gap-2"><ArrowLeftRight className="h-3.5 w-3.5" /> Transactions</TabsTrigger>
+          <TabsTrigger value="stock-in" className="gap-2"><ArrowDownToLine className="h-3.5 w-3.5" /> Stock In</TabsTrigger>
           <TabsTrigger value="stock-out" className="gap-2"><Trash2 className="h-3.5 w-3.5" /> Stock Out</TabsTrigger>
         </TabsList>
 
@@ -1215,6 +1336,173 @@ export default function Reports() {
                     })
                   ) : (
                     <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No stock out records found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="stock-in" className="space-y-4">
+          {selectedStockIn.size > 0 && (
+            <div className="flex items-center justify-between gap-3 p-3 bg-primary/10 rounded-lg border border-primary/20">
+              <span className="text-sm font-medium">{selectedStockIn.size} record(s) selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="gap-2" onClick={generateStockInCSV}>
+                  <Download className="h-3.5 w-3.5" /> Export
+                </Button>
+                <Button size="sm" variant="outline" className="gap-2" onClick={handlePrintSelected}>
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </Button>
+                <Button size="sm" variant="destructive" className="gap-2" onClick={handleBulkDeleteStockIn} disabled={isDeleting}>
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </Button>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                onClick={() => setViewMode('list')}
+                className="gap-2"
+              >
+                <List className="h-3.5 w-3.5" /> List View
+              </Button>
+              <Button 
+                size="sm" 
+                variant={viewMode === 'detail' ? 'default' : 'outline'}
+                onClick={() => setViewMode('detail')}
+                className="gap-2"
+              >
+                <Eye className="h-3.5 w-3.5" /> Detail View
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">{stockInTx.length} records</p>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+                setSelectedStockIn(new Set(stockInTx.map(t => t.id)));
+                setTimeout(() => generateStockInCSV(), 0);
+              }}>
+                <Download className="h-3.5 w-3.5" /> Export CSV (All)
+              </Button>
+            </div>
+          </div>
+          
+          {viewMode === 'detail' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {stockInTx.map((tx) => (
+                <div key={tx.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-gradient-to-br from-green-50/50 to-emerald-50/50 dark:from-green-950/20 dark:to-emerald-950/20">
+                  <div className="bg-green-100/50 p-4 border-b border-green-200">
+                    <h3 className="font-bold text-lg text-foreground">{tx.itemName}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{tx.date}</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Quantity Received</p>
+                        <p className="text-2xl font-bold text-green-600 mt-1">{tx.quantity}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Department</p>
+                        <p className="text-sm font-semibold mt-1">{tx.department}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold mb-1">Supplier/Source</p>
+                      <p className="text-sm">{tx.notes || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold mb-1">Received By</p>
+                      <p className="text-sm">{tx.user}</p>
+                    </div>
+                  </div>
+                  <div className="border-t p-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-2"
+                      onClick={() => openDetailView(tx, 'transaction')}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-2 hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => handleDeleteTransaction(tx.id, tx.itemName)}
+                      disabled={isDeleting}
+                      title="Delete this record"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {stockInTx.length === 0 && (
+                <div className="col-span-full text-center py-12 text-muted-foreground">
+                  <ArrowDownToLine className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No stock in records found</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-center py-3 px-4 w-10">
+                      <input type="checkbox" checked={selectedStockIn.size === stockInTx.length && stockInTx.length > 0} onChange={(e) => toggleAllStockIn(e.target.checked)} className="cursor-pointer" />
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Item</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">Supplier/Source</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden lg:table-cell">Department</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden xl:table-cell">User</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockInTx.length > 0 ? (
+                    stockInTx.map((tx) => (
+                      <tr key={tx.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${selectedStockIn.has(tx.id) ? 'bg-primary/5' : ''}`}>
+                        <td className="text-center py-3 px-4">
+                          <input type="checkbox" checked={selectedStockIn.has(tx.id)} onChange={() => toggleStockInSelection(tx.id)} className="cursor-pointer" />
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground text-sm">{tx.date}</td>
+                        <td className="py-3 px-4 font-medium">{tx.itemName}</td>
+                        <td className="py-3 px-4 font-semibold text-green-600">{tx.quantity}</td>
+                        <td className="py-3 px-4 text-muted-foreground hidden md:table-cell text-xs">{tx.notes || "—"}</td>
+                        <td className="py-3 px-4 text-muted-foreground hidden lg:table-cell text-xs">{tx.department}</td>
+                        <td className="py-3 px-4 text-muted-foreground hidden xl:table-cell text-xs">{tx.user}</td>
+                        <td className="py-3 px-4 text-right flex gap-1 justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                            onClick={() => openDetailView(tx, 'transaction')}
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm"
+                            variant="ghost" 
+                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => handleDeleteTransaction(tx.id, tx.itemName)}
+                            disabled={isDeleting}
+                            title="Delete this stock in record"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No stock in records found</td></tr>
                   )}
                 </tbody>
               </table>

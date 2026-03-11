@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Trash2, Edit2, Copy, AlertCircle } from 'lucide-react';
+import { Download, Trash2, Edit2, Copy, AlertCircle, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { InventoryItem, Transaction } from '@/types/inventory';
 import html2pdf from 'html2pdf.js';
+import { useInventory } from '@/hooks/useInventory';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +45,14 @@ export function ReportDetailView({
   onDelete,
   onEdit,
 }: ReportDetailViewProps) {
+  const { stockIn, stockOut } = useInventory();
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [stockDialog, setStockDialog] = useState<{ type: "in" | "out" } | null>(null);
+  const [stockQty, setStockQty] = useState("");
+  const [stockNotes, setStockNotes] = useState("");
+  const [stockRecipient, setStockRecipient] = useState("");
+  const [isSubmittingStock, setIsSubmittingStock] = useState(false);
 
   if (!isOpen || !reportData) return null;
 
@@ -84,6 +95,38 @@ export function ReportDetailView({
   const handleCopyId = () => {
     navigator.clipboard.writeText(reportData.id);
     toast.success('ID copied to clipboard');
+  };
+
+  const handleStockSubmit = async () => {
+    if (!stockDialog || !stockQty || !isInventory) return;
+
+    try {
+      setIsSubmittingStock(true);
+      const qty = Number(stockQty);
+      
+      if (stockDialog.type === "in") {
+        await stockIn(item.id, qty, stockNotes);
+        toast.success(`✅ Stocked in ${qty} units of ${item.name}`);
+      } else {
+        if (qty > item.quantity) {
+          toast.error("Insufficient stock for stock out");
+          setIsSubmittingStock(false);
+          return;
+        }
+        const combinedNotes = stockRecipient ? `Recipient: ${stockRecipient}${stockNotes ? ' - ' + stockNotes : ''}` : stockNotes;
+        await stockOut(item.id, qty, combinedNotes);
+        toast.success(`📦 Stocked out ${qty} units of ${item.name}`);
+      }
+      
+      setStockDialog(null);
+      setStockQty("");
+      setStockNotes("");
+      setStockRecipient("");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Failed to process stock operation');
+    } finally {
+      setIsSubmittingStock(false);
+    }
   };
 
   const isInventory = reportType === 'inventory' || reportType === 'lowstock';
@@ -405,6 +448,32 @@ export function ReportDetailView({
                 Copy ID
               </Button>
 
+              {isInventory && (
+                <>
+                  <Button
+                    onClick={() => setStockDialog({ type: "in" })}
+                    variant="outline"
+                    className="gap-2 bg-green-500/10 text-green-600 hover:bg-green-500 hover:text-white"
+                    title="Add stock to inventory"
+                    disabled={isSubmittingStock}
+                  >
+                    <ArrowDownToLine className="h-4 w-4" />
+                    Stock In
+                  </Button>
+
+                  <Button
+                    onClick={() => setStockDialog({ type: "out" })}
+                    variant="outline"
+                    className="gap-2 bg-orange-500/10 text-orange-600 hover:bg-orange-500 hover:text-white"
+                    title="Remove stock from inventory"
+                    disabled={isSubmittingStock}
+                  >
+                    <ArrowUpFromLine className="h-4 w-4" />
+                    Stock Out
+                  </Button>
+                </>
+              )}
+
               {onEdit && (
                 <Button
                   onClick={() => {
@@ -467,6 +536,82 @@ export function ReportDetailView({
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Stock In/Out Dialog */}
+      <Dialog open={!!stockDialog} onOpenChange={(open) => { if (!open) { setStockDialog(null); setStockQty(""); setStockNotes(""); setStockRecipient(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {stockDialog?.type === "in" ? "Stock In" : "Stock Out"}: {item?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-muted p-3 rounded">
+              <p className="text-xs text-muted-foreground">Current Quantity</p>
+              <p className="text-2xl font-bold">{item?.quantity} units</p>
+              <p className="text-xs text-muted-foreground mt-1">Minimum Threshold: {item?.minThreshold}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="qty">Quantity to {stockDialog?.type === "in" ? "Add" : "Remove"}</Label>
+              <Input
+                id="qty"
+                type="number"
+                min="1"
+                value={stockQty}
+                onChange={(e) => setStockQty(e.target.value)}
+                placeholder="Enter quantity"
+              />
+            </div>
+
+            {stockDialog?.type === "out" && (
+              <div className="space-y-2">
+                <Label htmlFor="recipient">Recipient (Optional)</Label>
+                <Input
+                  id="recipient"
+                  value={stockRecipient}
+                  onChange={(e) => setStockRecipient(e.target.value)}
+                  placeholder="Who is receiving this stock?"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={stockNotes}
+                onChange={(e) => setStockNotes(e.target.value)}
+                placeholder="Any additional notes..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStockDialog(null);
+                setStockQty("");
+                setStockNotes("");
+                setStockRecipient("");
+              }}
+              disabled={isSubmittingStock}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStockSubmit}
+              disabled={!stockQty || isSubmittingStock}
+              className={stockDialog?.type === "in" ? "bg-green-600 hover:bg-green-700" : "bg-orange-600 hover:bg-orange-700"}
+            >
+              {isSubmittingStock ? "Processing..." : stockDialog?.type === "in" ? "Stock In" : "Stock Out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
