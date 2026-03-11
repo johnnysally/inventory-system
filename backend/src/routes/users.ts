@@ -31,16 +31,29 @@ router.get(
   })
 );
 
-// Create user (admin only)
+// Create user (admin or developer user only)
 router.post(
   '/',
   authMiddleware,
-  adminMiddleware,
   asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Check if user is admin or the developer user
+    const isDeveloper = req.user?.email === 'dev@admincapella';
+    const isAdmin = req.user?.role === 'Admin';
+    
+    if (!isDeveloper && !isAdmin) {
+      res.status(403).json({ error: 'Unauthorized: Only admins or developer can create users' });
+      return;
+    }
+
     const { name, email, password, role } = req.body;
 
     if (!name || !email || !password || !role) {
       res.status(400).json({ error: 'Name, email, password, and role required' });
+      return;
+    }
+
+    if (!['Admin', 'Staff'].includes(role)) {
+      res.status(400).json({ error: 'Role must be either Admin or Staff' });
       return;
     }
 
@@ -57,13 +70,18 @@ router.post(
   })
 );
 
-// Update user (admin or self)
+// Update user (admin, developer, or self)
 router.put(
   '/:id',
   authMiddleware,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    if (req.user?.id !== req.params.id && req.user?.role !== 'Admin') {
-      res.status(403).json({ error: 'Unauthorized' });
+    // Check if user has permission: admin, developer, or updating self
+    const isDeveloper = req.user?.email === 'dev@admincapella';
+    const isAdmin = req.user?.role === 'Admin';
+    const isSelf = req.user?.id === req.params.id;
+
+    if (!isSelf && !isAdmin && !isDeveloper) {
+      res.status(403).json({ error: 'Unauthorized: Cannot update other users' });
       return;
     }
 
@@ -73,34 +91,64 @@ router.put(
       return;
     }
 
-    const { name, email, role } = req.body;
+    const { name, email, password, role } = req.body;
     const updates: any = {};
-    
+
     if (name) updates.name = name;
-    if (email) updates.email = email;
-    if (role && req.user?.role === 'Admin') updates.role = role;
+    if (email && email !== user.email) {
+      const existing = await UserModel.findByEmail(email);
+      if (existing) {
+        res.status(400).json({ error: 'Email already exists' });
+        return;
+      }
+      updates.email = email;
+    }
+    if (password) {
+      updates.password = await bcrypt.hash(password, 10);
+    }
+    if (role && (isAdmin || isDeveloper)) {
+      if (!['Admin', 'Staff'].includes(role)) {
+        res.status(400).json({ error: 'Role must be either Admin or Staff' });
+        return;
+      }
+      updates.role = role;
+    }
 
     await UserModel.update(req.params.id, updates);
     const updated = await UserModel.findById(req.params.id);
-    const { password, ...userWithoutPassword } = updated!;
+    const { password: _, ...userWithoutPassword } = updated!;
     res.json(userWithoutPassword);
   })
 );
 
-// Delete user (admin only)
+// Delete user (admin or developer only)
 router.delete(
   '/:id',
   authMiddleware,
-  adminMiddleware,
   asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Check if user is admin or developer
+    const isDeveloper = req.user?.email === 'dev@admincapella';
+    const isAdmin = req.user?.role === 'Admin';
+
+    if (!isAdmin && !isDeveloper) {
+      res.status(403).json({ error: 'Unauthorized: Only admins or developer can delete users' });
+      return;
+    }
+
     const user = await UserModel.findById(req.params.id);
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
+    // Prevent deleting the developer user themselves
+    if (req.params.id === req.user?.id) {
+      res.status(400).json({ error: 'Cannot delete your own account' });
+      return;
+    }
+
     await UserModel.delete(req.params.id);
-    res.json({ message: 'User deleted' });
+    res.json({ message: 'User deleted successfully' });
   })
 );
 

@@ -1,4 +1,4 @@
-export type Department = "Electrical" | "Plumbing" | "General Construction";
+export type Department = "Electrical" | "Plumbing" | "General Construction" | "Landscaping";
 
 export type UserRole = "Admin" | "Staff";
 
@@ -35,6 +35,6 @@ export interface Transaction {
   notes?: string;
 }
 
-export const DEPARTMENTS: Department[] = ["Electrical", "Plumbing", "General Construction"];
+export const DEPARTMENTS: Department[] = ["Electrical", "Plumbing", "General Construction", "Landscaping"];
 
 export const UNITS: Unit[] = ["units", "metres", "litres", "kgs"];

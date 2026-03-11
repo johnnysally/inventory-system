@@ -10,7 +10,7 @@ async function seedDatabase() {
     // Reset database schema first (drops and recreates tables)
     await resetDatabase();
     // Seed users
-    const adminPassword = await bcrypt.hash('capella1234', 10);
+    const adminPassword = await bcrypt.hash('admin1234', 10);
     const devPassword = await bcrypt.hash('1234dev', 10);
 
     const user1Id = uuidv4();

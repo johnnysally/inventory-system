@@ -7,7 +7,7 @@ export interface Transaction {
   itemName: string;
   type: 'Stock In' | 'Stock Out';
   quantity: number;
-  department: 'Electrical' | 'Plumbing' | 'General Construction';
+  department: 'Electrical' | 'Plumbing' | 'General Construction' | 'Landscaping';
   userId?: string;
   user: string;
   date: string;
@@ -46,7 +46,7 @@ export class TransactionModel {
     itemName: string,
     type: 'Stock In' | 'Stock Out',
     quantity: number,
-    department: 'Electrical' | 'Plumbing' | 'General Construction',
+    department: 'Electrical' | 'Plumbing' | 'General Construction' | 'Landscaping',
     user: string,
     userId?: string,
     notes?: string

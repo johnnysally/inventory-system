@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { useInventory } from "@/hooks/useInventory";
 import { Department, DEPARTMENTS } from "@/types/inventory";
-import { ArrowLeft, Package, AlertTriangle, ArrowLeftRight, TrendingUp, TrendingDown, Zap, Droplets, HardHat } from "lucide-react";
+import { ArrowLeft, Package, AlertTriangle, ArrowLeftRight, TrendingUp, TrendingDown, Zap, Droplets, HardHat, Leaf } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,14 @@ const DEPT_META: Record<Department, { icon: typeof Zap; color: string; chartColo
   Electrical: { icon: Zap, color: "text-info", chartColor: "hsl(217, 91%, 60%)" },
   Plumbing: { icon: Droplets, color: "text-success", chartColor: "hsl(142, 71%, 45%)" },
   "General Construction": { icon: HardHat, color: "text-primary", chartColor: "hsl(36, 95%, 50%)" },
+  Landscaping: { icon: Leaf, color: "text-green-600", chartColor: "hsl(120, 61%, 50%)" },
 };
 
 const SLUG_TO_DEPT: Record<string, Department> = {
   electrical: "Electrical",
   plumbing: "Plumbing",
   "general-construction": "General Construction",
+  landscaping: "Landscaping",
 };
 
 export function deptToSlug(dept: Department): string {

@@ -76,7 +76,7 @@ router.get(
     const transactions = await TransactionModel.getAll();
     const stats = await TransactionModel.getStats();
 
-    const departments = ['Electrical', 'Plumbing', 'General Construction'];
+    const departments = ['Electrical', 'Plumbing', 'General Construction', 'Landscaping'];
     const deptData = departments.map((dept: string) => {
       const deptItems = items.filter(i => i.department === dept);
       return {

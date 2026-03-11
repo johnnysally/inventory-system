@@ -1,25 +1,28 @@
 import { useInventory } from "@/hooks/useInventory";
 import { DEPARTMENTS, Department } from "@/types/inventory";
 import { Link } from "react-router-dom";
-import { Zap, Droplets, HardHat, AlertTriangle, ArrowRight, Package, TrendingUp } from "lucide-react";
+import { Zap, Droplets, HardHat, AlertTriangle, ArrowRight, Package, TrendingUp, Leaf } from "lucide-react";
 import { deptToSlug } from "./DepartmentDashboard";
 
 const DEPT_ICONS: Record<Department, typeof Zap> = {
   Electrical: Zap,
   Plumbing: Droplets,
   "General Construction": HardHat,
+  Landscaping: Leaf,
 };
 
 const DEPT_STYLES: Record<Department, string> = {
   Electrical: "text-info",
   Plumbing: "text-success",
   "General Construction": "text-primary",
+  Landscaping: "text-green-600",
 };
 
 const DEPT_BG: Record<Department, string> = {
   Electrical: "bg-info/5 border-info/20 hover:border-info/40",
   Plumbing: "bg-success/5 border-success/20 hover:border-success/40",
   "General Construction": "bg-primary/5 border-primary/20 hover:border-primary/40",
+  Landscaping: "bg-green-500/5 border-green-500/20 hover:border-green-500/40",
 };
 
 export default function Departments() {

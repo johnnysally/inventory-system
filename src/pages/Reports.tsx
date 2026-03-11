@@ -4,9 +4,11 @@ import { DEPARTMENTS } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, AlertTriangle, ArrowLeftRight, Package, Printer, Trash2 } from "lucide-react";
+import { Download, AlertTriangle, ArrowLeftRight, Package, Printer, Trash2, Eye, Grid3x3, List } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
+import { ReportDetailView } from "@/components/ReportDetailView";
+import { InventoryItem, Transaction } from "@/types/inventory";
 
 function downloadCSV(data: Record<string, any>[], filename: string) {
   if (!data.length) { toast.error("No data to export"); return; }
@@ -127,12 +129,22 @@ export default function Reports() {
   const [selectedLowStock, setSelectedLowStock] = useState<Set<string>>(new Set());
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [selectedStockOut, setSelectedStockOut] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
+  const [selectedReport, setSelectedReport] = useState<InventoryItem | Transaction | null>(null);
+  const [detailViewType, setDetailViewType] = useState<'inventory' | 'transaction' | 'lowstock' | null>(null);
+  const [showDetailView, setShowDetailView] = useState(false);
   const printContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredItems = deptFilter === "all" ? items : items.filter((i) => i.department === deptFilter);
   const lowStockItems = filteredItems.filter((i) => i.quantity <= i.minThreshold);
   const filteredTx = deptFilter === "all" ? transactions : transactions.filter((t) => t.department === deptFilter);
   const stockOutTx = filteredTx.filter((t) => t.type === "Stock Out");
+
+  const openDetailView = (data: InventoryItem | Transaction, type: 'inventory' | 'transaction' | 'lowstock') => {
+    setSelectedReport(data);
+    setDetailViewType(type);
+    setShowDetailView(true);
+  };
 
   const handleDeleteTransaction = async (transactionId: string, itemName: string) => {
     if (!window.confirm(`Are you sure you want to delete this stock out record for "${itemName}"? This action cannot be undone.`)) {
@@ -148,6 +160,18 @@ export default function Reports() {
       toast.error(error?.response?.data?.error || "Failed to delete transaction");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      if (detailViewType === 'transaction' || detailViewType === 'lowstock') {
+        await api.delete(`/transactions/${reportId}`);
+      }
+      await refreshData();
+      setShowDetailView(false);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Failed to delete report");
     }
   };
 
@@ -570,6 +594,13 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
+      <ReportDetailView
+        isOpen={showDetailView}
+        onClose={() => setShowDetailView(false)}
+        reportData={selectedReport}
+        reportType={detailViewType}
+        onDelete={handleDeleteReport}
+      />
       <div className="print-preview-container hidden" ref={printContainerRef}></div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -614,7 +645,25 @@ export default function Reports() {
               </div>
             </div>
           )}
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                onClick={() => setViewMode('list')}
+                className="gap-2"
+              >
+                <List className="h-3.5 w-3.5" /> List View
+              </Button>
+              <Button 
+                size="sm" 
+                variant={viewMode === 'detail' ? 'default' : 'outline'}
+                onClick={() => setViewMode('detail')}
+                className="gap-2"
+              >
+                <Eye className="h-3.5 w-3.5" /> Detail View
+              </Button>
+            </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={() => {
               setSelectedInventory(new Set(filteredItems.map(i => i.id)));
               setTimeout(() => generateInventoryCSV(), 0);
@@ -622,36 +671,99 @@ export default function Reports() {
               <Download className="h-3.5 w-3.5" /> Export CSV (All)
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-center py-3 px-4 w-10">
-                    <input type="checkbox" checked={selectedInventory.size === filteredItems.length && filteredItems.length > 0} onChange={(e) => toggleAllInventory(e.target.checked)} className="cursor-pointer" />
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Name</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Department</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden sm:table-cell">Unit</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">Specification</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item) => (
-                  <tr key={item.id} className={`border-b last:border-0 ${selectedInventory.has(item.id) ? 'bg-primary/5' : ''}`}>
-                    <td className="text-center py-2.5 px-4">
-                      <input type="checkbox" checked={selectedInventory.has(item.id)} onChange={() => toggleInventorySelection(item.id)} className="cursor-pointer" />
-                    </td>
-                    <td className="py-2.5 px-4 font-medium">{item.name}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{item.department}</td>
-                    <td className="py-2.5 px-4">{item.quantity}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground hidden sm:table-cell text-xs">{item.unit || "units"}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground truncate max-w-xs hidden md:table-cell">{item.specification}</td>
+          
+          {viewMode === 'detail' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredItems.map((item) => (
+                <div key={item.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-4 border-b">
+                    <h3 className="font-bold text-lg text-foreground">{item.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{item.department}</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Quantity</p>
+                        <p className="text-2xl font-bold text-primary mt-1">{item.quantity}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Min Threshold</p>
+                        <p className="text-2xl font-bold mt-1">{item.minThreshold}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold mb-1">Status</p>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            item.quantity <= item.minThreshold ? 'bg-destructive' : 'bg-green-500'
+                          }`}
+                        />
+                        <span className={item.quantity <= item.minThreshold ? 'text-destructive text-sm font-semibold' : 'text-green-600 text-sm font-semibold'}>
+                          {item.quantity <= item.minThreshold ? 'Low Stock' : 'Adequate'}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.specification}</p>
+                  </div>
+                  <div className="border-t p-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-2"
+                      onClick={() => openDetailView(item, 'inventory')}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-center py-3 px-4 w-10">
+                      <input type="checkbox" checked={selectedInventory.size === filteredItems.length && filteredItems.length > 0} onChange={(e) => toggleAllInventory(e.target.checked)} className="cursor-pointer" />
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Name</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Department</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden sm:table-cell">Unit</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">Specification</th>
+                    <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item) => (
+                    <tr key={item.id} className={`border-b last:border-0 hover:bg-muted/50 transition-colors ${selectedInventory.has(item.id) ? 'bg-primary/5' : ''}`}>
+                      <td className="text-center py-2.5 px-4">
+                        <input type="checkbox" checked={selectedInventory.has(item.id)} onChange={() => toggleInventorySelection(item.id)} className="cursor-pointer" />
+                      </td>
+                      <td className="py-2.5 px-4 font-medium">{item.name}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground">{item.department}</td>
+                      <td className="py-2.5 px-4">{item.quantity}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground hidden sm:table-cell text-xs">{item.unit || "units"}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground truncate max-w-xs hidden md:table-cell">{item.specification}</td>
+                      <td className="text-center py-2.5 px-4">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                          onClick={() => openDetailView(item, 'inventory')}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="low-stock" className="space-y-4">
@@ -668,7 +780,25 @@ export default function Reports() {
               </div>
             </div>
           )}
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                onClick={() => setViewMode('list')}
+                className="gap-2"
+              >
+                <List className="h-3.5 w-3.5" /> List View
+              </Button>
+              <Button 
+                size="sm" 
+                variant={viewMode === 'detail' ? 'default' : 'outline'}
+                onClick={() => setViewMode('detail')}
+                className="gap-2"
+              >
+                <Eye className="h-3.5 w-3.5" /> Detail View
+              </Button>
+            </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={() => {
               setSelectedLowStock(new Set(lowStockItems.map(i => i.id)));
               setTimeout(() => generateLowStockCSV(), 0);
@@ -676,41 +806,100 @@ export default function Reports() {
               <Download className="h-3.5 w-3.5" /> Export CSV (All)
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-center py-3 px-4 w-10">
-                    <input type="checkbox" checked={selectedLowStock.size === lowStockItems.length && lowStockItems.length > 0} onChange={(e) => toggleAllLowStock(e.target.checked)} className="cursor-pointer" />
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Name</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Department</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden sm:table-cell">Unit</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Min</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Deficit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lowStockItems.map((item) => (
-                  <tr key={item.id} className={`border-b last:border-0 ${selectedLowStock.has(item.id) ? 'bg-primary/5' : ''}`}>
-                    <td className="text-center py-2.5 px-4">
-                      <input type="checkbox" checked={selectedLowStock.has(item.id)} onChange={() => toggleLowStockSelection(item.id)} className="cursor-pointer" />
-                    </td>
-                    <td className="py-2.5 px-4 font-medium">{item.name}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{item.department}</td>
-                    <td className="py-2.5 px-4 text-destructive font-semibold">{item.quantity}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground hidden sm:table-cell text-xs">{item.unit || "units"}</td>
-                    <td className="py-2.5 px-4">{item.minThreshold}</td>
-                    <td className="py-2.5 px-4"><span className="low-stock-badge">{item.minThreshold - item.quantity}</span></td>
+          
+          {viewMode === 'detail' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {lowStockItems.map((item) => (
+                <div key={item.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-gradient-to-br from-red-50/50 to-orange-50/50 dark:from-red-950/20 dark:to-orange-950/20">
+                  <div className="bg-destructive/10 p-4 border-b border-destructive/30">
+                    <h3 className="font-bold text-lg text-foreground">{item.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{item.department}</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Current Qty</p>
+                        <p className="text-2xl font-bold text-destructive mt-1">{item.quantity}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Min Threshold</p>
+                        <p className="text-2xl font-bold text-primary mt-1">{item.minThreshold}</p>
+                      </div>
+                    </div>
+                    <div className="bg-white/50 dark:bg-black/20 rounded p-2 text-center">
+                      <p className="text-xs text-destructive font-bold">Deficit: {item.minThreshold - item.quantity} units</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.specification}</p>
+                  </div>
+                  <div className="border-t p-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-2"
+                      onClick={() => openDetailView(item, 'lowstock')}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {lowStockItems.length === 0 && (
+                <div className="col-span-full text-center py-12 text-muted-foreground">
+                  <AlertTriangle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>All items are adequately stocked</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-center py-3 px-4 w-10">
+                      <input type="checkbox" checked={selectedLowStock.size === lowStockItems.length && lowStockItems.length > 0} onChange={(e) => toggleAllLowStock(e.target.checked)} className="cursor-pointer" />
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Name</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Department</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden sm:table-cell">Unit</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Min</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Deficit</th>
+                    <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground">Actions</th>
                   </tr>
-                ))}
-                {lowStockItems.length === 0 && (
-                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">All items are adequately stocked</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {lowStockItems.map((item) => (
+                    <tr key={item.id} className={`border-b last:border-0 hover:bg-muted/50 transition-colors ${selectedLowStock.has(item.id) ? 'bg-primary/5' : ''}`}>
+                      <td className="text-center py-2.5 px-4">
+                        <input type="checkbox" checked={selectedLowStock.has(item.id)} onChange={() => toggleLowStockSelection(item.id)} className="cursor-pointer" />
+                      </td>
+                      <td className="py-2.5 px-4 font-medium">{item.name}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground">{item.department}</td>
+                      <td className="py-2.5 px-4 text-destructive font-semibold">{item.quantity}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground hidden sm:table-cell text-xs">{item.unit || "units"}</td>
+                      <td className="py-2.5 px-4">{item.minThreshold}</td>
+                      <td className="py-2.5 px-4"><span className="bg-destructive/10 text-destructive px-2 py-1 rounded text-xs font-semibold">{item.minThreshold - item.quantity}</span></td>
+                      <td className="text-center py-2.5 px-4">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                          onClick={() => openDetailView(item, 'lowstock')}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {lowStockItems.length === 0 && (
+                    <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">All items are adequately stocked</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-4">
@@ -727,7 +916,25 @@ export default function Reports() {
               </div>
             </div>
           )}
-          <div className="flex justify-end">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                onClick={() => setViewMode('list')}
+                className="gap-2"
+              >
+                <List className="h-3.5 w-3.5" /> List View
+              </Button>
+              <Button 
+                size="sm" 
+                variant={viewMode === 'detail' ? 'default' : 'outline'}
+                onClick={() => setViewMode('detail')}
+                className="gap-2"
+              >
+                <Eye className="h-3.5 w-3.5" /> Detail View
+              </Button>
+            </div>
             <Button variant="outline" size="sm" className="gap-2" onClick={() => {
               setSelectedTransactions(new Set(filteredTx.map(t => t.id)));
               setTimeout(() => generateTransactionsCSV(), 0);
@@ -735,42 +942,107 @@ export default function Reports() {
               <Download className="h-3.5 w-3.5" /> Export CSV (All)
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-center py-3 px-4 w-10">
-                    <input type="checkbox" checked={selectedTransactions.size === filteredTx.length && filteredTx.length > 0} onChange={(e) => toggleAllTransactions(e.target.checked)} className="cursor-pointer" />
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Date</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Item</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Type</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">User</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden lg:table-cell">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTx.map((tx) => (
-                  <tr key={tx.id} className={`border-b last:border-0 ${selectedTransactions.has(tx.id) ? 'bg-primary/5' : ''}`}>
-                    <td className="text-center py-2.5 px-4">
-                      <input type="checkbox" checked={selectedTransactions.has(tx.id)} onChange={() => toggleTransactionSelection(tx.id)} className="cursor-pointer" />
-                    </td>
-                    <td className="py-2.5 px-4 text-muted-foreground">{tx.date}</td>
-                    <td className="py-2.5 px-4 font-medium">{tx.itemName}</td>
-                    <td className="py-2.5 px-4">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tx.type === "Stock In" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+          
+          {viewMode === 'detail' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredTx.map((tx) => (
+                <div key={tx.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className={`${tx.type === 'Stock In' ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10' : 'bg-gradient-to-r from-red-500/10 to-orange-500/10'} p-4 border-b`}>
+                    <div className="flex items-center gap-2 justify-between">
+                      <h3 className="font-bold text-lg text-foreground">{tx.itemName}</h3>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                        tx.type === "Stock In" ? "bg-green-500/20 text-green-700" : "bg-red-500/20 text-red-700"
+                      }`}>
                         {tx.type}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-4">{tx.quantity}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground hidden md:table-cell">{tx.user}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground hidden lg:table-cell">{tx.notes || "—"}</td>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{tx.date}</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Quantity</p>
+                        <p className={`text-2xl font-bold mt-1 ${
+                          tx.type === "Stock In" ? "text-green-600" : "text-red-600"
+                        }`}>
+                          {tx.quantity}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold">Department</p>
+                        <p className="text-sm font-semibold mt-1">{tx.department}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold mb-1">Processed By</p>
+                      <p className="text-sm">{tx.user}</p>
+                    </div>
+                    {tx.notes && <p className="text-xs text-muted-foreground line-clamp-2 bg-muted p-2 rounded">{tx.notes}</p>}
+                  </div>
+                  <div className="border-t p-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 gap-2"
+                      onClick={() => openDetailView(tx, 'transaction')}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-center py-3 px-4 w-10">
+                      <input type="checkbox" checked={selectedTransactions.size === filteredTx.length && filteredTx.length > 0} onChange={(e) => toggleAllTransactions(e.target.checked)} className="cursor-pointer" />
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Item</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Type</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">User</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden lg:table-cell">Notes</th>
+                    <th className="text-center py-3 px-4 text-xs font-medium text-muted-foreground">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredTx.map((tx) => (
+                    <tr key={tx.id} className={`border-b last:border-0 hover:bg-muted/50 transition-colors ${selectedTransactions.has(tx.id) ? 'bg-primary/5' : ''}`}>
+                      <td className="text-center py-2.5 px-4">
+                        <input type="checkbox" checked={selectedTransactions.has(tx.id)} onChange={() => toggleTransactionSelection(tx.id)} className="cursor-pointer" />
+                      </td>
+                      <td className="py-2.5 px-4 text-muted-foreground">{tx.date}</td>
+                      <td className="py-2.5 px-4 font-medium">{tx.itemName}</td>
+                      <td className="py-2.5 px-4">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${tx.type === "Stock In" ? "bg-green-500/20 text-green-700" : "bg-red-500/20 text-red-700"}`}>
+                          {tx.type}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-4">{tx.quantity}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground hidden md:table-cell">{tx.user}</td>
+                      <td className="py-2.5 px-4 text-muted-foreground hidden lg:table-cell">{tx.notes || "—"}</td>
+                      <td className="text-center py-2.5 px-4">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                          onClick={() => openDetailView(tx, 'transaction')}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="stock-out" className="space-y-4">
@@ -791,8 +1063,26 @@ export default function Reports() {
             </div>
           )}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <p className="text-sm text-muted-foreground">{stockOutTx.length} stock out records</p>
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                onClick={() => setViewMode('list')}
+                className="gap-2"
+              >
+                <List className="h-3.5 w-3.5" /> List View
+              </Button>
+              <Button 
+                size="sm" 
+                variant={viewMode === 'detail' ? 'default' : 'outline'}
+                onClick={() => setViewMode('detail')}
+                className="gap-2"
+              >
+                <Eye className="h-3.5 w-3.5" /> Detail View
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">{stockOutTx.length} records</p>
               <Button variant="outline" size="sm" className="gap-2" onClick={() => {
                 setSelectedStockOut(new Set(stockOutTx.map(t => t.id)));
                 setTimeout(() => generateStockOutCSV(), 0);
@@ -801,61 +1091,135 @@ export default function Reports() {
               </Button>
             </div>
           </div>
-          <div className="overflow-x-auto rounded-xl border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-center py-3 px-4 w-10">
-                    <input type="checkbox" checked={selectedStockOut.size === stockOutTx.length && stockOutTx.length > 0} onChange={(e) => toggleAllStockOut(e.target.checked)} className="cursor-pointer" />
-                  </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Date</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Item</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">Recipient</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden lg:table-cell">Notes</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden xl:table-cell">User</th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockOutTx.length > 0 ? (
-                  stockOutTx.map((tx) => {
-                    const recipientMatch = tx.notes?.match(/Recipient: ([^|]+)/);
-                    const recipient = recipientMatch ? recipientMatch[1].trim() : "—";
-                    const otherNotes = tx.notes?.replace(/Recipient: [^|]+\s*\|\s*/, '') || "";
-                    
-                    return (
-                      <tr key={tx.id} className={`border-b last:border-0 hover:bg-muted/30 ${selectedStockOut.has(tx.id) ? 'bg-primary/5' : ''}`}>
-                        <td className="text-center py-3 px-4">
-                          <input type="checkbox" checked={selectedStockOut.has(tx.id)} onChange={() => toggleStockOutSelection(tx.id)} className="cursor-pointer" />
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground text-sm">{tx.date}</td>
-                        <td className="py-3 px-4 font-medium">{tx.itemName}</td>
-                        <td className="py-3 px-4 font-semibold text-destructive">{tx.quantity}</td>
-                        <td className="py-3 px-4 text-muted-foreground hidden md:table-cell text-xs">{recipient}</td>
-                        <td className="py-3 px-4 text-muted-foreground hidden lg:table-cell text-xs">{otherNotes || "—"}</td>
-                        <td className="py-3 px-4 text-muted-foreground hidden xl:table-cell text-xs">{tx.user}</td>
-                        <td className="py-3 px-4 text-right">
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => handleDeleteTransaction(tx.id, tx.itemName)}
-                            disabled={isDeleting}
-                            title="Delete this stock out record"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No stock out records found</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          
+          {viewMode === 'detail' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {stockOutTx.map((tx) => {
+                const recipientMatch = tx.notes?.match(/Recipient: ([^|]+)/);
+                const recipient = recipientMatch ? recipientMatch[1].trim() : "—";
+                return (
+                  <div key={tx.id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-gradient-to-br from-orange-50/50 to-red-50/50 dark:from-orange-950/20 dark:to-red-950/20">
+                    <div className="bg-destructive/10 p-4 border-b border-destructive/30">
+                      <h3 className="font-bold text-lg text-foreground">{tx.itemName}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{tx.date}</p>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground font-semibold">Quantity Issued</p>
+                          <p className="text-2xl font-bold text-destructive mt-1">{tx.quantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground font-semibold">Department</p>
+                          <p className="text-sm font-semibold mt-1">{tx.department}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold mb-1">Recipient</p>
+                        <p className="text-sm">{recipient}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-semibold mb-1">Processed By</p>
+                        <p className="text-sm">{tx.user}</p>
+                      </div>
+                    </div>
+                    <div className="border-t p-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={() => openDetailView(tx, 'transaction')}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View Details
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-2 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => handleDeleteTransaction(tx.id, tx.itemName)}
+                        disabled={isDeleting}
+                        title="Delete this record"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {stockOutTx.length === 0 && (
+                <div className="col-span-full text-center py-12 text-muted-foreground">
+                  <Trash2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No stock out records found</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-center py-3 px-4 w-10">
+                      <input type="checkbox" checked={selectedStockOut.size === stockOutTx.length && stockOutTx.length > 0} onChange={(e) => toggleAllStockOut(e.target.checked)} className="cursor-pointer" />
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Item</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Qty</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">Recipient</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden lg:table-cell">Notes</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden xl:table-cell">User</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockOutTx.length > 0 ? (
+                    stockOutTx.map((tx) => {
+                      const recipientMatch = tx.notes?.match(/Recipient: ([^|]+)/);
+                      const recipient = recipientMatch ? recipientMatch[1].trim() : "—";
+                      const otherNotes = tx.notes?.replace(/Recipient: [^|]+\s*\|\s*/, '') || "";
+                      
+                      return (
+                        <tr key={tx.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${selectedStockOut.has(tx.id) ? 'bg-primary/5' : ''}`}>
+                          <td className="text-center py-3 px-4">
+                            <input type="checkbox" checked={selectedStockOut.has(tx.id)} onChange={() => toggleStockOutSelection(tx.id)} className="cursor-pointer" />
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground text-sm">{tx.date}</td>
+                          <td className="py-3 px-4 font-medium">{tx.itemName}</td>
+                          <td className="py-3 px-4 font-semibold text-destructive">{tx.quantity}</td>
+                          <td className="py-3 px-4 text-muted-foreground hidden md:table-cell text-xs">{recipient}</td>
+                          <td className="py-3 px-4 text-muted-foreground hidden lg:table-cell text-xs">{otherNotes || "—"}</td>
+                          <td className="py-3 px-4 text-muted-foreground hidden xl:table-cell text-xs">{tx.user}</td>
+                          <td className="py-3 px-4 text-right flex gap-1 justify-end">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                              onClick={() => openDetailView(tx, 'transaction')}
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              size="sm"
+                              variant="ghost" 
+                              className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => handleDeleteTransaction(tx.id, tx.itemName)}
+                              disabled={isDeleting}
+                              title="Delete this stock out record"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No stock out records found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

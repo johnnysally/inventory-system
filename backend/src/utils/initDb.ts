@@ -33,7 +33,7 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS inventory_items (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        department TEXT CHECK(department IN ('Electrical', 'Plumbing', 'General Construction')) NOT NULL,
+        department TEXT CHECK(department IN ('Electrical', 'Plumbing', 'General Construction', 'Landscaping')) NOT NULL,
         quantity INTEGER NOT NULL DEFAULT 0,
         min_threshold INTEGER NOT NULL DEFAULT 10,
         specification TEXT,
@@ -113,7 +113,7 @@ export async function resetDatabase() {
       CREATE TABLE inventory_items (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        department TEXT CHECK(department IN ('Electrical', 'Plumbing', 'General Construction')) NOT NULL,
+        department TEXT CHECK(department IN ('Electrical', 'Plumbing', 'General Construction', 'Landscaping')) NOT NULL,
         quantity INTEGER NOT NULL DEFAULT 0,
         min_threshold INTEGER NOT NULL DEFAULT 10,
         specification TEXT,

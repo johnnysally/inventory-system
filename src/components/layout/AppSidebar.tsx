@@ -7,6 +7,8 @@ import {
   Building2,
   FileBarChart,
   Users,
+  UserPlus,
+  Settings,
   LogOut,
   Sun,
   Moon,
@@ -83,6 +85,51 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+
+              {/* Register User - Only for developer */}
+              {user?.email === "dev@admincapella" && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === "/register-user"}
+                      tooltip="Register User"
+                    >
+                      <Link
+                        to="/register-user"
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                          location.pathname === "/register-user"
+                            ? "bg-sidebar-accent text-sidebar-primary font-semibold"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                      >
+                        <UserPlus className="h-4.5 w-4.5 shrink-0" />
+                        {!collapsed && <span>Register User</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === "/user-management"}
+                      tooltip="User Management"
+                    >
+                      <Link
+                        to="/user-management"
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                          location.pathname === "/user-management"
+                            ? "bg-sidebar-accent text-sidebar-primary font-semibold"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        }`}
+                      >
+                        <Settings className="h-4.5 w-4.5 shrink-0" />
+                        {!collapsed && <span>User Management</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -14,6 +14,8 @@ import Departments from "./pages/Departments";
 import DepartmentDashboard from "./pages/DepartmentDashboard";
 import Reports from "./pages/Reports";
 import UsersPage from "./pages/UsersPage";
+import RegisterUser from "./pages/RegisterUser";
+import UserManagement from "./pages/UserManagement";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +41,8 @@ function ProtectedRoutes() {
             <Route path="/departments/:slug" element={<DepartmentDashboard />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/register-user" element={<RegisterUser />} />
+            <Route path="/user-management" element={<UserManagement />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AppLayout>

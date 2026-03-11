@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 export interface InventoryItem {
   id: string;
   name: string;
-  department: 'Electrical' | 'Plumbing' | 'General Construction';
+  department: 'Electrical' | 'Plumbing' | 'General Construction' | 'Landscaping';
   quantity: number;
   minThreshold: number;
   specification: string;
@@ -45,7 +45,7 @@ export class InventoryItemModel {
 
   static async create(
     name: string,
-    department: 'Electrical' | 'Plumbing' | 'General Construction',
+    department: 'Electrical' | 'Plumbing' | 'General Construction' | 'Landscaping',
     quantity: number,
     minThreshold: number,
     specification: string,

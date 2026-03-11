@@ -3,7 +3,7 @@ import { DEPARTMENTS } from "@/types/inventory";
 import { Package, AlertTriangle, Building2, ArrowLeftRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-const DEPT_COLORS = ["hsl(217, 91%, 60%)", "hsl(142, 71%, 45%)", "hsl(36, 95%, 50%)"];
+const DEPT_COLORS = ["hsl(217, 91%, 60%)", "hsl(142, 71%, 45%)", "hsl(36, 95%, 50%)", "hsl(120, 61%, 50%)"];
 
 export default function Dashboard() {
   const { items, transactions } = useInventory();
