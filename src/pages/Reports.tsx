@@ -1,13 +1,15 @@
 import { useState, useRef } from "react";
 import { useInventory } from "@/hooks/useInventory";
+import { useDetailViewPreference } from "@/hooks/useDetailViewPreference";
 import { DEPARTMENTS } from "@/types/inventory";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, AlertTriangle, ArrowLeftRight, ArrowDownToLine, Package, Printer, Trash2, Eye, Grid3x3, List } from "lucide-react";
+import { Download, AlertTriangle, ArrowLeftRight, ArrowDownToLine, Package, Printer, Trash2, Eye, Grid3x3, List, Settings } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { ReportDetailView } from "@/components/ReportDetailView";
+import { ReportDetailViewEnhanced } from "@/components/ReportDetailViewEnhanced";
 import { InventoryItem, Transaction } from "@/types/inventory";
 
 function downloadCSV(data: Record<string, any>[], filename: string) {
@@ -37,9 +39,195 @@ function handlePrint(printContentId: string) {
   // Add print styles that only show the print preview
   const style = document.createElement("style");
   style.innerHTML = `
+    /* Color Scheme */
+    :root {
+      --primary-blue: #1e5a96;
+      --light-gray: #f8f9fa;
+      --border-gray: #dee2e6;
+      --text-dark: #212529;
+      --text-light: #6c757d;
+    }
+    
+    /* ===== SCREEN PREVIEW STYLES ===== */
+    .print-preview-container {
+      background: white;
+      color: var(--text-dark);
+      padding: 20px;
+      margin: 15px auto;
+      border-radius: 4px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.55;
+      max-width: 900px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    
+    /* Header Styling */
+    .print-header {
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--primary-blue);
+      position: relative;
+    }
+    
+    .print-header .system-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary-blue);
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    
+    .print-header .report-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 10px;
+    }
+    
+    .print-header .report-meta {
+      font-size: 9px;
+      color: var(--text-light);
+      line-height: 1.5;
+      display: block;
+    }
+    
+    .print-header .report-meta p {
+      margin: 1px 0;
+      text-align: center;
+    }
+    
+    .print-header .report-meta strong {
+      color: var(--text-dark);
+      font-weight: 600;
+    }
+    
+    /* Section Styling */
+    .report-section {
+      margin-bottom: 20px;
+      page-break-inside: avoid;
+    }
+    
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: white;
+      background-color: var(--primary-blue);
+      padding: 8px 12px;
+      margin-bottom: 0;
+      border-radius: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    
+    /* Table Styling */
+    .print-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0;
+      background: white;
+      border: 1px solid var(--border-gray);
+    }
+    
+    .print-table th {
+      background-color: var(--primary-blue);
+      color: #ffffff;
+      border: 1px solid var(--primary-blue);
+      padding: 9px 10px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 9px;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    
+    .print-table td {
+      border: 1px solid var(--border-gray);
+      padding: 8px 10px;
+      font-size: 10px;
+      line-height: 1.3;
+      vertical-align: top;
+      color: var(--text-dark);
+    }
+    
+    .print-table tbody tr:nth-child(odd) {
+      background-color: white;
+    }
+    
+    .print-table tbody tr:nth-child(even) {
+      background-color: var(--light-gray);
+    }
+    
+    /* Summary Box Styling */
+    .print-summary {
+      background: var(--light-gray);
+      margin-top: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border-gray);
+      border-top: none;
+      font-size: 10px;
+      line-height: 1.5;
+      color: var(--text-dark);
+      page-break-inside: avoid;
+    }
+    
+    .print-summary strong {
+      font-weight: 600;
+      color: var(--primary-blue);
+      display: inline;
+      margin-right: 6px;
+      font-size: 10px;
+    }
+    
+    /* Footer Styling */
+    .print-footer {
+      margin-top: 25px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-gray);
+      text-align: center;
+      font-size: 8px;
+      color: var(--text-light);
+      page-break-after: avoid;
+    }
+    
+    .print-footer strong {
+      color: var(--text-dark);
+      font-weight: 600;
+      display: block;
+      margin-bottom: 2px;
+    }
+    
+    /* ===== PRINT MEDIA STYLES ===== */
     @media print {
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { padding: 20px; background: white; font-family: Arial, sans-serif; }
+      * { 
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        color: var(--text-dark) !important;
+        background-color: transparent !important;
+      }
+      
+      html { 
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: white !important;
+        color-scheme: light !important;
+      }
+      
+      body { 
+        padding: 15mm 10mm !important;
+        background: white !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        line-height: 1.5 !important;
+        color: var(--text-dark) !important;
+        margin: 0 !important;
+        width: 100% !important;
+        font-size: 10px !important;
+      }
+      
       header { display: none !important; }
       nav { display: none !important; }
       .tabs { display: none !important; }
@@ -48,65 +236,164 @@ function handlePrint(printContentId: string) {
       
       .print-preview-container {
         display: block !important;
-        width: 100%;
-        margin: 0;
-        padding: 0;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        color: var(--text-dark) !important;
       }
       
       .print-header {
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--primary-blue) !important;
+        background: white !important;
+        color: var(--text-dark) !important;
+        page-break-after: avoid;
+      }
+      
+      .print-header .system-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--primary-blue) !important;
+        letter-spacing: 0.4px;
+        margin: 0 0 3px 0;
+        background: white !important;
+        text-transform: uppercase;
+      }
+      
+      .print-header .report-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-dark) !important;
+        margin: 0 0 8px 0;
+        background: white !important;
+      }
+      
+      .print-header .report-meta {
+        font-size: 9px;
+        color: var(--text-light) !important;
+        line-height: 1.5;
+        background: white !important;
         text-align: center;
-        margin-bottom: 30px;
       }
       
-      .print-header h1 {
-        font-size: 24px;
-        margin-bottom: 5px;
-        font-weight: bold;
+      .print-header .report-meta p {
+        margin: 1px 0;
+        color: var(--text-light) !important;
+        background: white !important;
       }
       
-      .print-header p {
-        font-size: 12px;
-        color: #666;
-        margin-bottom: 3px;
+      .print-header .report-meta strong {
+        color: var(--text-dark) !important;
+        font-weight: 600;
+      }
+      
+      .report-section {
+        margin-bottom: 18px;
+        background: white !important;
+        color: var(--text-dark) !important;
+        page-break-inside: avoid;
+      }
+      
+      .section-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: white !important;
+        background: var(--primary-blue) !important;
+        padding: 7px 10px !important;
+        margin: 0 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+        border: none !important;
       }
       
       .print-table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 20px;
+        margin: 0 !important;
+        background: white !important;
+        border: 1px solid var(--border-gray) !important;
       }
       
       .print-table th {
-        background-color: #f0f0f0;
-        border: 1px solid #333;
-        padding: 12px;
+        background-color: var(--primary-blue) !important;
+        color: #ffffff !important;
+        border: 1px solid var(--primary-blue) !important;
+        padding: 8px 10px !important;
         text-align: left;
-        font-weight: bold;
-        font-size: 12px;
+        font-weight: 700;
+        font-size: 9px;
+        letter-spacing: 0.2px;
+        text-transform: uppercase;
+        vertical-align: middle;
       }
       
       .print-table td {
-        border: 1px solid #333;
-        padding: 10px 12px;
-        font-size: 11px;
+        border: 1px solid var(--border-gray) !important;
+        padding: 7px 10px !important;
+        font-size: 10px;
+        line-height: 1.2;
+        color: var(--text-dark) !important;
+        background: white !important;
+        vertical-align: top;
+      }
+      
+      .print-table tbody tr {
+        page-break-inside: avoid;
+        background: white !important;
+      }
+      
+      .print-table tbody tr:nth-child(odd) {
+        background-color: white !important;
       }
       
       .print-table tbody tr:nth-child(even) {
-        background-color: #f9f9f9;
+        background-color: var(--light-gray) !important;
       }
       
       .print-summary {
-        margin-top: 20px;
-        padding-top: 20px;
-        border-top: 2px solid #333;
-        font-size: 12px;
+        background: var(--light-gray) !important;
+        margin: 0 !important;
+        padding: 9px 10px !important;
+        border: 1px solid var(--border-gray) !important;
+        border-top: none !important;
+        font-size: 10px;
+        line-height: 1.5;
+        color: var(--text-dark) !important;
+        page-break-inside: avoid;
+        display: block;
+      }
+      
+      .print-summary strong {
+        font-weight: 600;
+        color: var(--primary-blue) !important;
+        display: inline;
+        margin-right: 5px;
+        font-size: 10px;
       }
       
       .print-footer {
-        margin-top: 30px;
-        text-align: right;
-        font-size: 11px;
-        color: #666;
+        margin-top: 22px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-gray) !important;
+        text-align: center;
+        font-size: 8px;
+        color: var(--text-light) !important;
+        page-break-after: avoid;
+        background: white !important;
+      }
+      
+      .print-footer strong {
+        color: var(--text-dark) !important;
+        font-weight: 600;
+        display: block;
+        margin-bottom: 2px;
+      }
+      
+      @page {
+        margin: 15mm 10mm;
+        size: A4;
       }
     }
   `;
@@ -134,6 +421,8 @@ export default function Reports() {
   const [selectedReport, setSelectedReport] = useState<InventoryItem | Transaction | null>(null);
   const [detailViewType, setDetailViewType] = useState<'inventory' | 'transaction' | 'lowstock' | null>(null);
   const [showDetailView, setShowDetailView] = useState(false);
+  const [showViewStyleMenu, setShowViewStyleMenu] = useState(false);
+  const { viewStyle, updateViewStyle, isLoaded } = useDetailViewPreference();
   const printContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredItems = deptFilter === "all" ? items : items.filter((i) => i.department === deptFilter);
@@ -289,34 +578,44 @@ export default function Reports() {
       return;
     }
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     let html = `
       <div class="print-header">
-        <h1>Inventory Report</h1>
-        <p>SawelaCapella Inventory Management System</p>
-        <p>Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+        <div class="system-title">SawelaCapellaLodge Inventory System</div>
+        <div class="report-title">📦 Complete Inventory Report</div>
+        <div class="report-meta">
+          <p><strong>Report Generated:</strong> ${dateStr} at ${timeStr}</p>
+          <p><strong>Department Filter:</strong> ${deptFilter === 'all' ? 'All Departments' : deptFilter}</p>
+        </div>
       </div>
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Department</th>
-            <th>Quantity</th>
-            <th>Unit</th>
-            <th>Min Threshold</th>
-            <th>Specification</th>
-          </tr>
-        </thead>
-        <tbody>
+      
+      <div class="report-section">
+        <div class="section-title">Inventory Items</div>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th>Department</th>
+              <th>Current Qty</th>
+              <th>Unit</th>
+              <th>Min Threshold</th>
+              <th>Specification</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
     
     let totalQty = 0;
-    selectedData.forEach(item => {
+    selectedData.forEach((item, index) => {
       html += `
         <tr>
           <td>${item.name}</td>
           <td>${item.department}</td>
-          <td>${item.quantity}</td>
-          <td>${item.unit || "units"}</td>
+          <td><strong>${item.quantity}</strong></td>
+          <td>${item.unit || 'units'}</td>
           <td>${item.minThreshold}</td>
           <td>${item.specification}</td>
         </tr>
@@ -325,13 +624,18 @@ export default function Reports() {
     });
 
     html += `
-        </tbody>
-      </table>
-      <div class="print-summary">
-        <strong>Total Items:</strong> ${selectedData.length} | <strong>Total Quantity:</strong> ${totalQty}
+          </tbody>
+        </table>
       </div>
+      
+      <div class="print-summary">
+        <strong>📊 Summary Statistics:</strong><br/>
+        Total Items Inventoried: <strong>${selectedData.length}</strong> | 
+        Total Quantity: <strong>${totalQty} units</strong>
+      </div>
+      
       <div class="print-footer">
-        Page prepared for printing
+        <strong>SawelaCapellaLodge Inventory Management System</strong> | Report Date: ${dateStr} | Page printed for archival purposes
       </div>
     `;
 
@@ -347,24 +651,34 @@ export default function Reports() {
       return;
     }
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     let html = `
       <div class="print-header">
-        <h1>Low Stock Report</h1>
-        <p>SawelaCapella Inventory Management System</p>
-        <p>Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+        <div class="system-title">SawelaCapellaLodge Inventory System</div>
+        <div class="report-title">⚠️ Low Stock Alert Report</div>
+        <div class="report-meta">
+          <p><strong>Report Generated:</strong> ${dateStr} at ${timeStr}</p>
+          <p><strong>Department Filter:</strong> ${deptFilter === 'all' ? 'All Departments' : deptFilter}</p>
+        </div>
       </div>
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Department</th>
-            <th>Quantity</th>
-            <th>Unit</th>
-            <th>Min Threshold</th>
-            <th>Deficit</th>
-          </tr>
-        </thead>
-        <tbody>
+      
+      <div class="report-section">
+        <div class="section-title">Items Below Minimum Threshold</div>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Item Name</th>
+              <th>Department</th>
+              <th>Current Stock</th>
+              <th>Unit</th>
+              <th>Min Required</th>
+              <th>Deficit</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
 
     let totalDeficit = 0;
@@ -375,22 +689,28 @@ export default function Reports() {
         <tr>
           <td>${item.name}</td>
           <td>${item.department}</td>
-          <td>${item.quantity}</td>
-          <td>${item.unit || "units"}</td>
+          <td><strong style="color: #000; font-weight: 900;">${item.quantity}</strong></td>
+          <td>${item.unit || 'units'}</td>
           <td>${item.minThreshold}</td>
-          <td><strong>${deficit}</strong></td>
+          <td><strong style="color: #000; font-weight: 900;">${deficit}</strong></td>
         </tr>
       `;
     });
 
     html += `
-        </tbody>
-      </table>
-      <div class="print-summary">
-        <strong>Alert Items:</strong> ${selectedData.length} | <strong>Total Deficit:</strong> ${totalDeficit} units
+          </tbody>
+        </table>
       </div>
+      
+      <div class="print-summary">
+        <strong>🚨 Alert Summary:</strong><br/>
+        Items Below Threshold: <strong>${selectedData.length}</strong> | 
+        Total Units Needed: <strong>${totalDeficit} units</strong><br/>
+        <em>Immediate action required to replenish stock</em>
+      </div>
+      
       <div class="print-footer">
-        Page prepared for printing
+        <strong>SawelaCapellaLodge Inventory Management System</strong> | Report Date: ${dateStr} | Page printed for archival purposes
       </div>
     `;
 
@@ -406,52 +726,69 @@ export default function Reports() {
       return;
     }
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     let html = `
       <div class="print-header">
-        <h1>Transaction Report</h1>
-        <p>SawelaCapella Inventory Management System</p>
-        <p>Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+        <div class="system-title">SawelaCapellaLodge Inventory System</div>
+        <div class="report-title">🔄 Complete Transaction Report</div>
+        <div class="report-meta">
+          <p><strong>Report Generated:</strong> ${dateStr} at ${timeStr}</p>
+          <p><strong>Department Filter:</strong> ${deptFilter === 'all' ? 'All Departments' : deptFilter}</p>
+        </div>
       </div>
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Item</th>
-            <th>Type</th>
-            <th>Quantity</th>
-            <th>Department</th>
-            <th>User</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
+      
+      <div class="report-section">
+        <div class="section-title">All Transactions (Stock In & Out)</div>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Item Name</th>
+              <th>Type</th>
+              <th>Quantity</th>
+              <th>Department</th>
+              <th>User</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
 
     let totalIn = 0, totalOut = 0;
     selectedData.forEach(tx => {
       if (tx.type === "Stock In") totalIn += tx.quantity;
       else totalOut += tx.quantity;
+      const typeLabel = tx.type === 'Stock In' ? '📥' : '📤';
       html += `
         <tr>
           <td>${tx.date}</td>
           <td>${tx.itemName}</td>
-          <td><strong>${tx.type}</strong></td>
+          <td><strong>${typeLabel} ${tx.type}</strong></td>
           <td>${tx.quantity}</td>
           <td>${tx.department}</td>
           <td>${tx.user}</td>
-          <td>${tx.notes || "—"}</td>
+          <td>${tx.notes || '—'}</td>
         </tr>
       `;
     });
 
     html += `
-        </tbody>
-      </table>
-      <div class="print-summary">
-        <strong>Total Transactions:</strong> ${selectedData.length} | <strong>Stock In:</strong> ${totalIn} | <strong>Stock Out:</strong> ${totalOut}
+          </tbody>
+        </table>
       </div>
+      
+      <div class="print-summary">
+        <strong>📋 Transaction Summary:</strong><br/>
+        Total Transactions: <strong>${selectedData.length}</strong> | 
+        Total Stock In: <strong>${totalIn} units</strong> | 
+        Total Stock Out: <strong>${totalOut} units</strong>
+      </div>
+      
       <div class="print-footer">
-        Page prepared for printing
+        <strong>SawelaCapellaLodge Inventory Management System</strong> | Report Date: ${dateStr} | Page printed for archival purposes
       </div>
     `;
 
@@ -467,54 +804,69 @@ export default function Reports() {
       return;
     }
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     let html = `
       <div class="print-header">
-        <h1>Stock Out Report</h1>
-        <p>SawelaCapella Inventory Management System</p>
-        <p>Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+        <div class="system-title">SawelaCapellaLodge Inventory System</div>
+        <div class="report-title">📤 Stock Out Report</div>
+        <div class="report-meta">
+          <p><strong>Report Generated:</strong> ${dateStr} at ${timeStr}</p>
+          <p><strong>Department Filter:</strong> ${deptFilter === 'all' ? 'All Departments' : deptFilter}</p>
+        </div>
       </div>
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Item</th>
-            <th>Quantity</th>
-            <th>Department</th>
-            <th>Recipient</th>
-            <th>Notes</th>
-            <th>User</th>
-          </tr>
-        </thead>
-        <tbody>
+      
+      <div class="report-section">
+        <div class="section-title">Items Issued / Stock Out Transactions</div>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Item Name</th>
+              <th>Quantity Issued</th>
+              <th>Department</th>
+              <th>Recipient/Destination</th>
+              <th>Notes</th>
+              <th>Processed By</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
 
     let totalQty = 0;
     selectedData.forEach(tx => {
       totalQty += tx.quantity;
       const recipientMatch = tx.notes?.match(/Recipient: ([^|]+)/);
-      const recipient = recipientMatch ? recipientMatch[1].trim() : "—";
-      const otherNotes = tx.notes?.replace(/Recipient: [^|]+\s*\|\s*/, '') || "";
+      const recipient = recipientMatch ? recipientMatch[1].trim() : '—';
+      const otherNotes = tx.notes?.replace(/Recipient: [^|]+\s*\|\s*/, '') || '';
       html += `
         <tr>
           <td>${tx.date}</td>
           <td>${tx.itemName}</td>
-          <td>${tx.quantity}</td>
+          <td><strong>${tx.quantity}</strong></td>
           <td>${tx.department}</td>
           <td>${recipient}</td>
-          <td>${otherNotes || "—"}</td>
+          <td>${otherNotes || '—'}</td>
           <td>${tx.user}</td>
         </tr>
       `;
     });
 
     html += `
-        </tbody>
-      </table>
-      <div class="print-summary">
-        <strong>Total Stock Out Records:</strong> ${selectedData.length} | <strong>Total Quantity Issued:</strong> ${totalQty}
+          </tbody>
+        </table>
       </div>
+      
+      <div class="print-summary">
+        <strong>📊 Stock Out Summary:</strong><br/>
+        Total Transactions: <strong>${selectedData.length}</strong> | 
+        Total Units Issued: <strong>${totalQty} units</strong>
+      </div>
+      
       <div class="print-footer">
-        Page prepared for printing
+        <strong>SawelaCapellaLodge Inventory Management System</strong> | Report Date: ${dateStr} | Page printed for archival purposes
       </div>
     `;
 
@@ -530,25 +882,35 @@ export default function Reports() {
       return;
     }
 
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
     let html = `
       <div class="print-header">
-        <h1>Stock In Report</h1>
-        <p>SawelaCapella Inventory Management System</p>
-        <p>Generated on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+        <div class="system-title">SawelaCapellaLodge Inventory System</div>
+        <div class="report-title">📥 Stock In Report</div>
+        <div class="report-meta">
+          <p><strong>Report Generated:</strong> ${dateStr} at ${timeStr}</p>
+          <p><strong>Department Filter:</strong> ${deptFilter === 'all' ? 'All Departments' : deptFilter}</p>
+        </div>
       </div>
-      <table class="print-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Item</th>
-            <th>Quantity</th>
-            <th>Department</th>
-            <th>Supplier/Source</th>
-            <th>Notes</th>
-            <th>User</th>
-          </tr>
-        </thead>
-        <tbody>
+      
+      <div class="report-section">
+        <div class="section-title">Items Received / Stock In Transactions</div>
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Item Name</th>
+              <th>Quantity Received</th>
+              <th>Department</th>
+              <th>Supplier / Source</th>
+              <th>Notes</th>
+              <th>Processed By</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
 
     let totalQty = 0;
@@ -558,9 +920,9 @@ export default function Reports() {
         <tr>
           <td>${tx.date}</td>
           <td>${tx.itemName}</td>
-          <td>${tx.quantity}</td>
+          <td><strong>${tx.quantity}</strong></td>
           <td>${tx.department}</td>
-          <td>${tx.notes || "—"}</td>
+          <td>${tx.notes || '—'}</td>
           <td></td>
           <td>${tx.user}</td>
         </tr>
@@ -568,13 +930,18 @@ export default function Reports() {
     });
 
     html += `
-        </tbody>
-      </table>
-      <div class="print-summary">
-        <strong>Total Stock In Records:</strong> ${selectedData.length} | <strong>Total Quantity Received:</strong> ${totalQty}
+          </tbody>
+        </table>
       </div>
+      
+      <div class="print-summary">
+        <strong>📊 Stock In Summary:</strong><br/>
+        Total Transactions: <strong>${selectedData.length}</strong> | 
+        Total Units Received: <strong>${totalQty} units</strong>
+      </div>
+      
       <div class="print-footer">
-        Page prepared for printing
+        <strong>SawelaCapellaLodge Inventory Management System</strong> | Report Date: ${dateStr} | Page printed for archival purposes
       </div>
     `;
 
@@ -610,7 +977,7 @@ export default function Reports() {
     }
 
     const timestamp = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
-    let csv = `SawelaCapella Inventory Management System\nInventory Report\nGenerated: ${timestamp}\n\n`;
+    let csv = `SawelaCapellaLodge Inventory Management System\nInventory Report\nGenerated: ${timestamp}\n\n`;
     csv += "Name,Department,Quantity,Unit,Min Threshold,Specification,Date Added\n";
     
     let totalQty = 0;
@@ -631,7 +998,7 @@ export default function Reports() {
     }
 
     const timestamp = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
-    let csv = `SawelaCapella Inventory Management System\nLow Stock Report\nGenerated: ${timestamp}\n\n`;
+    let csv = `SawelaCapellaLodge Inventory Management System\nLow Stock Report\nGenerated: ${timestamp}\n\n`;
     csv += "Name,Department,Quantity,Unit,Min Threshold,Deficit\n";
     
     let totalDeficit = 0;
@@ -653,7 +1020,7 @@ export default function Reports() {
     }
 
     const timestamp = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
-    let csv = `SawelaCapella Inventory Management System\nTransaction Report\nGenerated: ${timestamp}\n\n`;
+    let csv = `SawelaCapellaLodge Inventory Management System\nTransaction Report\nGenerated: ${timestamp}\n\n`;
     csv += "Date,Item,Type,Quantity,Department,User,Notes\n";
     
     let totalIn = 0, totalOut = 0;
@@ -675,7 +1042,7 @@ export default function Reports() {
     }
 
     const timestamp = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
-    let csv = `SawelaCapella Inventory Management System\nStock Out Report\nGenerated: ${timestamp}\n\n`;
+    let csv = `SawelaCapellaLodge Inventory Management System\nStock Out Report\nGenerated: ${timestamp}\n\n`;
     csv += "Date,Item,Quantity,Department,Recipient,Notes,User\n";
     
     let totalQty = 0;
@@ -699,7 +1066,7 @@ export default function Reports() {
     }
 
     const timestamp = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
-    let csv = `SawelaCapella Inventory Management System\nStock In Report\nGenerated: ${timestamp}\n\n`;
+    let csv = `SawelaCapellaLodge Inventory Management System\nStock In Report\nGenerated: ${timestamp}\n\n`;
     csv += "Date,Item,Quantity,Department,Supplier/Source,Notes,User\n";
     
     let totalQty = 0;
@@ -714,13 +1081,24 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <ReportDetailView
-        isOpen={showDetailView}
-        onClose={() => setShowDetailView(false)}
-        reportData={selectedReport}
-        reportType={detailViewType}
-        onDelete={handleDeleteReport}
-      />
+      {/* Render the appropriate detail view based on user preference */}
+      {isLoaded && viewStyle === 'enhanced' ? (
+        <ReportDetailViewEnhanced
+          isOpen={showDetailView}
+          onClose={() => setShowDetailView(false)}
+          reportData={selectedReport}
+          reportType={detailViewType}
+          onDelete={handleDeleteReport}
+        />
+      ) : (
+        <ReportDetailView
+          isOpen={showDetailView}
+          onClose={() => setShowDetailView(false)}
+          reportData={selectedReport}
+          reportType={detailViewType}
+          onDelete={handleDeleteReport}
+        />
+      )}
       <div className="print-preview-container hidden" ref={printContainerRef}></div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -740,6 +1118,61 @@ export default function Reports() {
           <Button variant="outline" size="icon" onClick={handlePrintSelected} title="Print selected items" className="hover:bg-primary hover:text-primary-foreground transition-colors">
             <Printer className="h-4 w-4" />
           </Button>
+          {/* Detail View Style Toggle */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowViewStyleMenu(!showViewStyleMenu)}
+              title="Detail view settings"
+              className="hover:bg-primary hover:text-primary-foreground transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            {showViewStyleMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <div className="p-3 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Detail View Style</p>
+                </div>
+                <button
+                  onClick={() => {
+                    updateViewStyle('classic');
+                    setShowViewStyleMenu(false);
+                    toast.success('Switched to Classic view');
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                    viewStyle === 'classic'
+                      ? 'bg-blue-50 text-blue-900 font-semibold'
+                      : 'hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    <span>Classic</span>
+                    {viewStyle === 'classic' && <span className="ml-auto text-lg">✓</span>}
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    updateViewStyle('enhanced');
+                    setShowViewStyleMenu(false);
+                    toast.success('Switched to Enhanced view');
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors border-t border-gray-100 ${
+                    viewStyle === 'enhanced'
+                      ? 'bg-blue-50 text-blue-900 font-semibold'
+                      : 'hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Grid3x3 className="h-4 w-4" />
+                    <span>Enhanced</span>
+                    {viewStyle === 'enhanced' && <span className="ml-auto text-lg">✓</span>}
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

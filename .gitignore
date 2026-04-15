@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Problematic script files (system startup/service scripts)
+start-system-silent.ps1
+start-system-silent-fixed.ps1
+start-system-hidden.vbs
+stop-hidden.vbs
+run-hidden.vbs
+start-*.bat
+stop-*.bat
+remove-*.bat
+start-*.ps1
+stop-*.ps1
+setup-*.bat
+service-*.bat
+remove-autostart.bat

@@ -14,10 +14,17 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:8080,http://localhost:8081').split(',');
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:8080,http://localhost:8081')
+  .split(',')
+  .map(origin => origin.trim());
 
 // Middleware
-app.use(cors({ origin: corsOrigins }));
+app.use(cors({ 
+  origin: corsOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Health check
@@ -51,9 +58,9 @@ async function startServer() {
     process.exit(1);
   }
 
-  app.listen(port, () => {
+  app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 SawelaCapella Backend Server`);
-    console.log(`📍 Running on http://localhost:${port}`);
+    console.log(`📍 Running on http://0.0.0.0:${port} (accessible from your IP)`);
     console.log(`🔓 CORS enabled for ${corsOrigins.join(', ')}\n`);
   });
 }

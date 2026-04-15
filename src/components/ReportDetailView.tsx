@@ -77,18 +77,159 @@ export function ReportDetailView({
   const handlePrintPDF = () => {
     if (!reportData) return;
 
-    const element = document.getElementById('report-table-content');
-    if (!element) return;
+    // Create a complete PDF export element with proper styling
+    const exportElement = document.createElement('div');
+    exportElement.style.cssText = `
+      width: 100%;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: white;
+      color: #1a1a1a;
+    `;
+
+    // System title and header
+    const headerHTML = `
+      <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px solid #1e5a96; padding-bottom: 15px;">
+        <div style="font-size: 20px; font-weight: bold; color: #1e5a96 !important; margin-bottom: 5px;">SawelaCapellaLodge</div>
+        <div style="font-size: 14px; color: #666 !important; margin-bottom: 10px;">Inventory System - Report Export</div>
+        <div style="font-size: 12px; color: #999 !important;">Generated: ${new Date().toLocaleString()}</div>
+      </div>
+    `;
+
+    // Report title
+    const titleHTML = `
+      <div style="margin-bottom: 20px;">
+        <h1 style="font-size: 18px; font-weight: bold; color: #1e5a96 !important; margin: 0 0 8px 0;">
+          ${isInventory ? 'Inventory Item Report' : 'Transaction Report'}
+        </h1>
+        <p style="font-size: 12px; color: #666 !important; margin: 0;">
+          ${isInventory ? `Item: ${(reportData as InventoryItem).name}` : `Transaction: ${(reportData as Transaction).type} - ${(reportData as Transaction).itemName}`}
+        </p>
+      </div>
+    `;
+
+    // Content from report-table-content
+    const contentElement = document.getElementById('report-table-content');
+    const contentHTML = contentElement ? contentElement.innerHTML : '';
+
+    // Add comprehensive styles for tables
+    const styleHTML = `
+      <style>
+        * {
+          color: #1a1a1a !important;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 15px;
+          font-size: 12px;
+          color: #1a1a1a !important;
+        }
+        td {
+          padding: 10px;
+          border: 1px solid #dee2e6;
+          color: #1a1a1a !important;
+        }
+        td:nth-child(1) {
+          background-color: #f8f9fa !important;
+          font-weight: 600;
+          width: 30%;
+          color: #1e5a96 !important;
+        }
+        tr:nth-child(odd) td:nth-child(2) {
+          background-color: #f8f9fa !important;
+          color: #1a1a1a !important;
+        }
+        tr:nth-child(even) td:nth-child(2) {
+          background-color: #ffffff !important;
+          color: #1a1a1a !important;
+        }
+        h2 {
+          font-size: 14px;
+          color: #1e5a96 !important;
+          margin: 15px 0 8px 0;
+          font-weight: 600;
+          border-left: 3px solid #1e5a96;
+          padding-left: 10px;
+        }
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 10px;
+          margin: 15px 0;
+          background-color: #f8f9fa !important;
+          padding: 15px;
+          border: 1px solid #dee2e6;
+          border-radius: 4px;
+        }
+        .summary-item {
+          padding: 8px;
+          color: #1a1a1a !important;
+        }
+        .summary-label {
+          font-size: 10px;
+          font-weight: 600;
+          color: #666 !important;
+          margin-bottom: 4px;
+          text-transform: uppercase;
+        }
+        .summary-value {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1e5a96 !important;
+        }
+        code {
+          background-color: #e9ecef !important;
+          color: #1a1a1a !important;
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-size: 11px;
+          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        span.badge {
+          display: inline-block;
+          padding: 4px 8px;
+          border-radius: 3px;
+          font-size: 11px;
+          font-weight: 600;
+        }
+      </style>
+    `;
+
+    // Summary statistics
+    const summaryHTML = `
+      <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin-top: 15px;">
+        <div style="font-size: 11px; font-weight: 600; color: #666 !important; margin-bottom: 10px; text-transform: uppercase;">Summary Statistics</div>
+        <table style="margin: 0;">
+          <tr>
+            <td style="background-color: white; color: #666 !important;">Report ID</td>
+            <td style="background-color: white; color: #1e5a96 !important; font-weight: 600;">${reportData.id.substring(0, 12)}...</td>
+            <td style="background-color: white; color: #666 !important;">Generated</td>
+            <td style="background-color: white; color: #1a1a1a !important;">${new Date().toLocaleDateString()}</td>
+          </tr>
+        </table>
+      </div>
+    `;
+
+    // Footer
+    const footerHTML = `
+      <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #dee2e6; text-align: center; font-size: 10px; color: #999 !important;">
+        <p style="margin: 0; color: #999 !important;">This is an automated report generated by SawelaCapellaLodge Inventory System</p>
+        <p style="margin: 5px 0 0 0; color: #999 !important;">For official use only | Confidential</p>
+      </div>
+    `;
+
+    exportElement.innerHTML = styleHTML + headerHTML + titleHTML + contentHTML + summaryHTML + footerHTML;
 
     const opt = {
-      margin: 15,
-      filename: `report-${reportData.id}.pdf`,
+      margin: 10,
+      filename: `report-${reportData.id}-${new Date().getTime()}.pdf`,
       image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2 },
+      html2canvas: { scale: 2, useCORS: true },
       jsPDF: { orientation: 'portrait' as const, unit: 'mm', format: 'a4' },
     };
 
-    html2pdf().set(opt).from(element).save();
+    html2pdf().set(opt).from(exportElement).save();
     toast.success('PDF downloaded successfully');
   };
 
